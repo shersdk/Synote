@@ -6,6 +6,23 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { useNotes, Note, Folder } from '@/hooks/useNotes';
 import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
     PlusIcon,
     FolderIcon,
     FolderPlusIcon,
@@ -18,6 +35,7 @@ import {
     Loader2Icon,
     CheckIcon,
     XIcon,
+    GripVerticalIcon,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -41,15 +59,36 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
 
     const [isCreating, setIsCreating] = useState(false);
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
-    const [showFolderInput, setShowFolderInput] = useState(false);
+    const [isCreatingFolder, setIsCreatingFolder] = useState(false);
     const [newFolderName, setNewFolderName] = useState('');
+    const [orderedFolderIds, setOrderedFolderIds] = useState<string[]>([]);
     const folderInputRef = useRef<HTMLInputElement>(null);
 
+    // Sync ordered folder IDs when folders change
     useEffect(() => {
-        if (showFolderInput && folderInputRef.current) {
+        const currentIds = folders.map(f => f.id);
+        const orderedIds = orderedFolderIds.filter(id => currentIds.includes(id));
+        const newIds = currentIds.filter(id => !orderedFolderIds.includes(id));
+        // New folders go at the top
+        setOrderedFolderIds([...newIds, ...orderedIds]);
+    }, [folders]);
+
+    useEffect(() => {
+        if (isCreatingFolder && folderInputRef.current) {
             folderInputRef.current.focus();
         }
-    }, [showFolderInput]);
+    }, [isCreatingFolder]);
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
 
     const handleNewNote = async () => {
         setIsCreating(true);
@@ -61,13 +100,13 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
         if (newFolderName.trim()) {
             await createFolder(newFolderName.trim());
             setNewFolderName('');
-            setShowFolderInput(false);
+            setIsCreatingFolder(false);
         }
     };
 
     const handleCancelFolder = () => {
         setNewFolderName('');
-        setShowFolderInput(false);
+        setIsCreatingFolder(false);
     };
 
     const toggleFolder = (folderId: string) => {
@@ -82,9 +121,26 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
         });
     };
 
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (over && active.id !== over.id) {
+            setOrderedFolderIds((items) => {
+                const oldIndex = items.indexOf(active.id as string);
+                const newIndex = items.indexOf(over.id as string);
+                return arrayMove(items, oldIndex, newIndex);
+            });
+        }
+    };
+
     const rootNotes = notes.filter(n => !n.folderId);
     const getNotesForFolder = (folderId: string) =>
         notes.filter(n => n.folderId === folderId);
+
+    // Get folders in the user's custom order
+    const orderedFolders = orderedFolderIds
+        .map(id => folders.find(f => f.id === id))
+        .filter((f): f is Folder => f !== undefined);
 
     return (
         <motion.aside
@@ -151,56 +207,13 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
                     className="h-8 w-8 bg-sidebar-accent/30 border-sidebar-border/50 hover:bg-sidebar-accent/60"
                     onClick={() => {
                         console.log('New Folder button clicked');
-                        setShowFolderInput(true);
+                        setIsCreatingFolder(true);
                     }}
                     title="New Folder"
                 >
                     <FolderPlusIcon className="h-3.5 w-3.5" />
                 </Button>
             </div>
-
-            {/* New Folder Input */}
-            <AnimatePresence>
-                {showFolderInput && (
-                    <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.15, ease: 'easeOut' }}
-                        className="px-3 pb-3 overflow-hidden"
-                    >
-                        <div className="flex items-center gap-1">
-                            <Input
-                                ref={folderInputRef}
-                                value={newFolderName}
-                                onChange={(e) => setNewFolderName(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleCreateFolder();
-                                    if (e.key === 'Escape') handleCancelFolder();
-                                }}
-                                placeholder="Folder name..."
-                                className="h-8 text-sm sidebar-input bg-sidebar-accent/30 border-sidebar-border/50"
-                            />
-                            <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8 shrink-0"
-                                onClick={handleCreateFolder}
-                            >
-                                <CheckIcon className="h-4 w-4" />
-                            </Button>
-                            <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8 shrink-0"
-                                onClick={handleCancelFolder}
-                            >
-                                <XIcon className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
 
             {/* Notes & Folders Tree */}
             <ScrollArea className="flex-1 px-2">
@@ -216,20 +229,85 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
                                 All Notes ({notes.length})
                             </div>
 
-                            {/* Folders */}
-                            {folders.map(folder => (
-                                <FolderItem
-                                    key={folder.id}
-                                    folder={folder}
-                                    notes={getNotesForFolder(folder.id)}
-                                    expanded={expandedFolders.has(folder.id)}
-                                    onToggle={() => toggleFolder(folder.id)}
-                                    selectedNoteId={selectedNoteId}
-                                    onSelectNote={selectNote}
-                                    onDeleteNote={deleteNote}
-                                    onDeleteFolder={deleteFolder}
-                                />
-                            ))}
+                            {/* New Folder Input - Inline at top of folder list */}
+                            <AnimatePresence>
+                                {isCreatingFolder && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.15, ease: 'easeOut' }}
+                                        className="overflow-hidden"
+                                    >
+                                        <div className="flex items-center gap-1 px-1 py-0.5">
+                                            <div className="flex flex-1 items-center gap-2 rounded-lg px-2.5 py-1 bg-sidebar-accent/50">
+                                                <FolderIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                                <Input
+                                                    ref={folderInputRef}
+                                                    value={newFolderName}
+                                                    onChange={(e) => setNewFolderName(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') handleCreateFolder();
+                                                        if (e.key === 'Escape') handleCancelFolder();
+                                                    }}
+                                                    onBlur={() => {
+                                                        // Small delay to allow button clicks
+                                                        setTimeout(() => {
+                                                            if (!newFolderName.trim()) {
+                                                                handleCancelFolder();
+                                                            }
+                                                        }, 150);
+                                                    }}
+                                                    placeholder="Folder name..."
+                                                    className="h-6 text-sm bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
+                                                />
+                                            </div>
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-7 w-7 shrink-0"
+                                                onClick={handleCreateFolder}
+                                            >
+                                                <CheckIcon className="h-3.5 w-3.5" />
+                                            </Button>
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-7 w-7 shrink-0"
+                                                onClick={handleCancelFolder}
+                                            >
+                                                <XIcon className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            {/* Folders with Drag and Drop */}
+                            <DndContext
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragEnd={handleDragEnd}
+                            >
+                                <SortableContext
+                                    items={orderedFolderIds}
+                                    strategy={verticalListSortingStrategy}
+                                >
+                                    {orderedFolders.map(folder => (
+                                        <SortableFolderItem
+                                            key={folder.id}
+                                            folder={folder}
+                                            notes={getNotesForFolder(folder.id)}
+                                            expanded={expandedFolders.has(folder.id)}
+                                            onToggle={() => toggleFolder(folder.id)}
+                                            selectedNoteId={selectedNoteId}
+                                            onSelectNote={selectNote}
+                                            onDeleteNote={deleteNote}
+                                            onDeleteFolder={deleteFolder}
+                                        />
+                                    ))}
+                                </SortableContext>
+                            </DndContext>
 
                             {/* Root level notes */}
                             {rootNotes.length > 0 && (
@@ -334,7 +412,7 @@ function NoteItem({ note, isSelected, onSelect, onDelete, nested }: NoteItemProp
     );
 }
 
-interface FolderItemProps {
+interface SortableFolderItemProps {
     folder: Folder;
     notes: Note[];
     expanded: boolean;
@@ -345,7 +423,7 @@ interface FolderItemProps {
     onDeleteFolder: (id: string) => void;
 }
 
-function FolderItem({
+function SortableFolderItem({
     folder,
     notes,
     expanded,
@@ -354,21 +432,44 @@ function FolderItem({
     onSelectNote,
     onDeleteNote,
     onDeleteFolder,
-}: FolderItemProps) {
+}: SortableFolderItemProps) {
     const [showDelete, setShowDelete] = useState(false);
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: folder.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
 
     return (
-        <div>
+        <div ref={setNodeRef} style={style}>
             <div
                 onMouseEnter={() => setShowDelete(true)}
                 onMouseLeave={() => setShowDelete(false)}
                 className="flex items-center gap-1"
             >
+                {/* Drag Handle */}
+                <button
+                    {...attributes}
+                    {...listeners}
+                    className="p-1 cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-muted-foreground"
+                >
+                    <GripVerticalIcon className="h-3 w-3" />
+                </button>
+
                 <motion.button
                     whileTap={{ scale: 0.98 }}
                     onClick={onToggle}
                     className={cn(
-                        'flex flex-1 items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-sidebar-foreground',
+                        'flex flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-sidebar-foreground',
                         'transition-colors duration-150 hover:bg-sidebar-accent/50'
                     )}
                 >
