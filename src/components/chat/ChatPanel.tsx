@@ -13,6 +13,7 @@ import {
     CheckCircleIcon,
     CheckIcon,
     XCircleIcon,
+    PlusIcon,
 } from 'lucide-react';
 
 interface PendingAction {
@@ -137,15 +138,19 @@ export function ChatPanel({ isOpen, onClose, onActionsPerformed }: ChatPanelProp
         }));
     };
 
+    const handleClearChat = () => {
+        setMessages([]);
+    };
+
     if (!isOpen) return null;
 
     return (
         <div
-            className="fixed right-0 top-0 z-50 flex h-screen w-[400px] flex-col bg-background border-l border-border shadow-2xl"
-            style={{ pointerEvents: 'auto' }}
+            className="fixed right-0 top-0 z-50 flex h-screen w-[400px] flex-col bg-background border-l border-border shadow-2xl chat-panel-glow"
+            style={{ pointerEvents: 'auto', left: 'auto' }}
         >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
                 <div className="flex items-center gap-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
                         <SparklesIcon className="h-4 w-4 text-primary" />
@@ -155,14 +160,26 @@ export function ChatPanel({ isOpen, onClose, onActionsPerformed }: ChatPanelProp
                         <p className="text-xs text-muted-foreground">Ask anything about your notes</p>
                     </div>
                 </div>
-                <button
-                    type="button"
-                    onClick={onClose}
-                    className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-accent transition-colors cursor-pointer"
-                    style={{ pointerEvents: 'auto', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                >
-                    <XIcon className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                    <button
+                        type="button"
+                        onClick={handleClearChat}
+                        className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-accent transition-colors cursor-pointer"
+                        style={{ pointerEvents: 'auto', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                        title="New Chat"
+                    >
+                        <PlusIcon className="h-4 w-4" />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-accent transition-colors cursor-pointer"
+                        style={{ pointerEvents: 'auto', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                        title="Close"
+                    >
+                        <XIcon className="h-4 w-4" />
+                    </button>
+                </div>
             </div>
 
             {/* Messages */}
@@ -276,8 +293,8 @@ export function ChatPanel({ isOpen, onClose, onActionsPerformed }: ChatPanelProp
             </ScrollArea>
 
             {/* Input */}
-            <form onSubmit={handleSubmit} className="border-t border-border p-4">
-                <div className="flex gap-2 chat-input-glow rounded-xl p-1">
+            <form onSubmit={handleSubmit} className="border-t border-border/50 p-4">
+                <div className="flex gap-2">
                     <Input
                         ref={inputRef}
                         value={input}
