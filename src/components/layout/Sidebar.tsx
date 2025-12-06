@@ -7,10 +7,12 @@ import { Input } from '@/components/ui/input';
 import { useNotes, Note, Folder } from '@/hooks/useNotes';
 import {
     DndContext,
+    DragOverlay,
     KeyboardSensor,
     PointerSensor,
     useSensor,
     useSensors,
+    DragStartEvent,
     DragEndEvent,
     useDroppable,
     useDraggable,
@@ -57,15 +59,15 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
         deleteNote,
         createFolder,
         deleteFolder,
+        moveNoteToFolder,
     } = useNotes();
-
-    const { moveNoteToFolder } = useNotes();
 
     const [isCreating, setIsCreating] = useState(false);
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
     const [isCreatingFolder, setIsCreatingFolder] = useState(false);
     const [newFolderName, setNewFolderName] = useState('');
     const [orderedFolderIds, setOrderedFolderIds] = useState<string[]>([]);
+    const [activeDragId, setActiveDragId] = useState<string | null>(null);
     const folderInputRef = useRef<HTMLInputElement>(null);
 
     // Sync ordered folder IDs when folders change
@@ -73,7 +75,6 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
         const currentIds = folders.map(f => f.id);
         const orderedIds = orderedFolderIds.filter(id => currentIds.includes(id));
         const newIds = currentIds.filter(id => !orderedFolderIds.includes(id));
-        // New folders go at the top
         setOrderedFolderIds([...newIds, ...orderedIds]);
     }, [folders]);
 
@@ -85,9 +86,7 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 8,
-            },
+            activationConstraint: { distance: 8 },
         }),
         useSensor(KeyboardSensor, {
             coordinateGetter: sortableKeyboardCoordinates,
@@ -125,56 +124,64 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
         });
     };
 
+    const handleDragStart = (event: DragStartEvent) => {
+        console.log('Drag started:', event.active.id);
+        setActiveDragId(event.active.id as string);
+    };
+
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
-
-        console.log('Drag end:', { activeId: active.id, overId: over?.id });
+        console.log('Drag ended:', { activeId: active.id, overId: over?.id });
+        setActiveDragId(null);
 
         if (!over) return;
 
-        // Check if we're dragging a note onto a folder
         const activeId = active.id as string;
         const overId = over.id as string;
 
-        console.log('Processing drag:', { activeId, overId });
+        // Handle note dragging
+        if (activeId.startsWith('note:')) {
+            const noteId = activeId.replace('note:', '');
 
-        // If the active item is a note (starts with 'note-')
-        if (activeId.startsWith('note-')) {
-            const noteId = activeId.replace('note-', '');
-            // If dropping on a folder (either sortable folder or folder droppable)
-            if (overId.startsWith('folder-')) {
-                const folderId = overId.replace('folder-', '');
-                console.log('Moving note to folder:', { noteId, folderId });
+            // Dropping on a folder
+            if (overId.startsWith('folder:')) {
+                const folderId = overId.replace('folder:', '');
                 moveNoteToFolder(noteId, folderId);
-            } else if (folders.some(f => f.id === overId)) {
-                // Direct folder ID match (from sortable)
-                console.log('Moving note to folder (direct):', { noteId, folderId: overId });
-                moveNoteToFolder(noteId, overId);
+                return;
             }
-            return;
+
+            // Dropping on "unsorted" drop zone
+            if (overId === 'unsorted-zone') {
+                moveNoteToFolder(noteId, null);
+                return;
+            }
         }
 
-        // Otherwise it's folder reordering
-        if (active.id !== over.id) {
-            setOrderedFolderIds((items) => {
-                const oldIndex = items.indexOf(activeId);
-                const newIndex = items.indexOf(overId);
-                if (oldIndex !== -1 && newIndex !== -1) {
-                    return arrayMove(items, oldIndex, newIndex);
-                }
-                return items;
-            });
+        // Handle folder reordering
+        if (!activeId.startsWith('note:') && !overId.startsWith('note:')) {
+            if (activeId !== overId) {
+                setOrderedFolderIds(items => {
+                    const oldIndex = items.indexOf(activeId);
+                    const newIndex = items.indexOf(overId);
+                    if (oldIndex !== -1 && newIndex !== -1) {
+                        return arrayMove(items, oldIndex, newIndex);
+                    }
+                    return items;
+                });
+            }
         }
     };
 
     const rootNotes = notes.filter(n => !n.folderId);
-    const getNotesForFolder = (folderId: string) =>
-        notes.filter(n => n.folderId === folderId);
-
-    // Get folders in the user's custom order
+    const getNotesForFolder = (folderId: string) => notes.filter(n => n.folderId === folderId);
     const orderedFolders = orderedFolderIds
         .map(id => folders.find(f => f.id === id))
         .filter((f): f is Folder => f !== undefined);
+
+    // Get the currently dragged item for the overlay
+    const activeDragNote = activeDragId?.startsWith('note:')
+        ? notes.find(n => n.id === activeDragId.replace('note:', ''))
+        : null;
 
     return (
         <motion.aside
@@ -227,10 +234,7 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
                     variant="outline"
                     size="icon"
                     className="h-8 w-8 bg-sidebar-accent/30 border-sidebar-border/50 hover:bg-sidebar-accent/60"
-                    onClick={() => {
-                        console.log('AI Chat button clicked');
-                        onOpenChat?.();
-                    }}
+                    onClick={() => onOpenChat?.()}
                     title="AI Chat"
                 >
                     <SparklesIcon className="h-3.5 w-3.5" />
@@ -239,10 +243,7 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
                     variant="outline"
                     size="icon"
                     className="h-8 w-8 bg-sidebar-accent/30 border-sidebar-border/50 hover:bg-sidebar-accent/60"
-                    onClick={() => {
-                        console.log('New Folder button clicked');
-                        setIsCreatingFolder(true);
-                    }}
+                    onClick={() => setIsCreatingFolder(true)}
                     title="New Folder"
                 >
                     <FolderPlusIcon className="h-3.5 w-3.5" />
@@ -257,13 +258,18 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
                             <Loader2Icon className="h-5 w-5 animate-spin text-muted-foreground" />
                         </div>
                     ) : (
-                        <>
+                        <DndContext
+                            sensors={sensors}
+                            collisionDetection={pointerWithin}
+                            onDragStart={handleDragStart}
+                            onDragEnd={handleDragEnd}
+                        >
                             {/* All Notes header */}
                             <div className="px-2.5 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                                 All Notes ({notes.length})
                             </div>
 
-                            {/* New Folder Input - Inline at top of folder list */}
+                            {/* New Folder Input - Inline at top */}
                             <AnimatePresence>
                                 {isCreatingFolder && (
                                     <motion.div
@@ -284,32 +290,14 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
                                                         if (e.key === 'Enter') handleCreateFolder();
                                                         if (e.key === 'Escape') handleCancelFolder();
                                                     }}
-                                                    onBlur={() => {
-                                                        // Small delay to allow button clicks
-                                                        setTimeout(() => {
-                                                            if (!newFolderName.trim()) {
-                                                                handleCancelFolder();
-                                                            }
-                                                        }, 150);
-                                                    }}
                                                     placeholder="Folder name..."
                                                     className="h-6 text-sm bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
                                                 />
                                             </div>
-                                            <Button
-                                                size="icon"
-                                                variant="ghost"
-                                                className="h-7 w-7 shrink-0"
-                                                onClick={handleCreateFolder}
-                                            >
+                                            <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={handleCreateFolder}>
                                                 <CheckIcon className="h-3.5 w-3.5" />
                                             </Button>
-                                            <Button
-                                                size="icon"
-                                                variant="ghost"
-                                                className="h-7 w-7 shrink-0"
-                                                onClick={handleCancelFolder}
-                                            >
+                                            <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={handleCancelFolder}>
                                                 <XIcon className="h-3.5 w-3.5" />
                                             </Button>
                                         </div>
@@ -317,50 +305,41 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
                                 )}
                             </AnimatePresence>
 
-                            {/* Folders and Notes with Drag and Drop */}
-                            <DndContext
-                                sensors={sensors}
-                                collisionDetection={pointerWithin}
-                                onDragEnd={handleDragEnd}
-                            >
-                                <SortableContext
-                                    items={orderedFolderIds}
-                                    strategy={verticalListSortingStrategy}
-                                >
-                                    {orderedFolders.map(folder => (
-                                        <SortableFolderItem
-                                            key={folder.id}
-                                            folder={folder}
-                                            notes={getNotesForFolder(folder.id)}
-                                            expanded={expandedFolders.has(folder.id)}
-                                            onToggle={() => toggleFolder(folder.id)}
-                                            selectedNoteId={selectedNoteId}
-                                            onSelectNote={selectNote}
-                                            onDeleteNote={deleteNote}
-                                            onDeleteFolder={deleteFolder}
+                            {/* Folders */}
+                            <SortableContext items={orderedFolderIds} strategy={verticalListSortingStrategy}>
+                                {orderedFolders.map(folder => (
+                                    <DroppableFolder
+                                        key={folder.id}
+                                        folder={folder}
+                                        notes={getNotesForFolder(folder.id)}
+                                        expanded={expandedFolders.has(folder.id)}
+                                        onToggle={() => toggleFolder(folder.id)}
+                                        selectedNoteId={selectedNoteId}
+                                        onSelectNote={selectNote}
+                                        onDeleteNote={deleteNote}
+                                        onDeleteFolder={deleteFolder}
+                                    />
+                                ))}
+                            </SortableContext>
+
+                            {/* Unsorted Notes */}
+                            {rootNotes.length > 0 && (
+                                <UnsortedDropZone>
+                                    <div className="px-2.5 py-1 mt-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                        Unsorted
+                                    </div>
+                                    {rootNotes.map(note => (
+                                        <DraggableNote
+                                            key={note.id}
+                                            note={note}
+                                            isSelected={selectedNoteId === note.id}
+                                            onSelect={() => selectNote(note.id)}
+                                            onDelete={() => deleteNote(note.id)}
+                                            showIndicator
                                         />
                                     ))}
-                                </SortableContext>
-
-                                {/* Root level notes - inside DndContext for drag-drop */}
-                                {rootNotes.length > 0 && (
-                                    <>
-                                        <div className="px-2.5 py-1 mt-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                                            Unsorted
-                                        </div>
-                                        {rootNotes.map(note => (
-                                            <DraggableNoteItem
-                                                key={note.id}
-                                                note={note}
-                                                isSelected={selectedNoteId === note.id}
-                                                onSelect={() => selectNote(note.id)}
-                                                onDelete={() => deleteNote(note.id)}
-                                                showIndicator
-                                            />
-                                        ))}
-                                    </>
-                                )}
-                            </DndContext>
+                                </UnsortedDropZone>
+                            )}
 
                             {/* Empty state */}
                             {notes.length === 0 && folders.length === 0 && (
@@ -370,7 +349,17 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
                                     <p className="text-xs">Click "New Note" to get started</p>
                                 </div>
                             )}
-                        </>
+
+                            {/* Drag Overlay */}
+                            <DragOverlay>
+                                {activeDragNote && (
+                                    <div className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm bg-sidebar-accent text-sidebar-foreground shadow-lg">
+                                        <FileTextIcon className="h-4 w-4 text-muted-foreground" />
+                                        <span>{activeDragNote.title || 'Untitled'}</span>
+                                    </div>
+                                )}
+                            </DragOverlay>
+                        </DndContext>
                     )}
                 </div>
             </ScrollArea>
@@ -380,10 +369,7 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
                 <Button
                     variant="ghost"
                     className="w-full justify-start gap-2 text-muted-foreground h-9 hover:bg-sidebar-accent/50"
-                    onClick={() => {
-                        console.log('Settings button clicked');
-                        onOpenSettings?.();
-                    }}
+                    onClick={() => onOpenSettings?.()}
                 >
                     <SettingsIcon className="h-4 w-4" />
                     <span className="text-sm">Settings</span>
@@ -393,78 +379,57 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
     );
 }
 
-interface NoteItemProps {
-    note: Note;
-    isSelected: boolean;
-    onSelect: () => void;
-    onDelete: () => void;
-    nested?: boolean;
-}
+// ============================================
+// Unsorted Drop Zone - allows dropping notes here to "unfolder" them
+// ============================================
 
-function NoteItem({ note, isSelected, onSelect, onDelete, nested }: NoteItemProps) {
-    const [showDelete, setShowDelete] = useState(false);
+function UnsortedDropZone({ children }: { children: React.ReactNode }) {
+    const { setNodeRef, isOver } = useDroppable({ id: 'unsorted-zone' });
 
     return (
         <div
-            onMouseEnter={() => setShowDelete(true)}
-            onMouseLeave={() => setShowDelete(false)}
-            className={cn('flex items-center gap-1', nested && 'ml-4')}
+            ref={setNodeRef}
+            className={cn(
+                'transition-colors rounded-lg',
+                isOver && 'bg-green-500/10 ring-1 ring-green-500/30'
+            )}
         >
-            <motion.button
-                whileTap={{ scale: 0.98 }}
-                onClick={onSelect}
-                className={cn(
-                    'flex flex-1 items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm',
-                    'transition-colors duration-150',
-                    isSelected
-                        ? 'bg-sidebar-accent text-sidebar-foreground'
-                        : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-                )}
-            >
-                <FileTextIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                <span className="flex-1 truncate text-left">{note.title || 'Untitled'}</span>
-            </motion.button>
-
-            <AnimatePresence>
-                {showDelete && (
-                    <motion.button
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.8 }}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm('Delete this note?')) {
-                                onDelete();
-                            }
-                        }}
-                        className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive flex-shrink-0 mr-1"
-                    >
-                        <TrashIcon className="h-3.5 w-3.5" />
-                    </motion.button>
-                )}
-            </AnimatePresence>
+            {children}
         </div>
     );
 }
 
-interface DraggableNoteItemProps {
+// ============================================
+// Draggable Note - can be dragged to folders or unsorted
+// ============================================
+
+interface DraggableNoteProps {
     note: Note;
     isSelected: boolean;
     onSelect: () => void;
     onDelete: () => void;
     showIndicator?: boolean;
+    nested?: boolean;
 }
 
-function DraggableNoteItem({ note, isSelected, onSelect, onDelete, showIndicator }: DraggableNoteItemProps) {
+function DraggableNote({ note, isSelected, onSelect, onDelete, showIndicator, nested }: DraggableNoteProps) {
     const [showDelete, setShowDelete] = useState(false);
-    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-        id: `note-${note.id}`,
+    const { attributes, listeners, setNodeRef, isDragging, transform } = useDraggable({
+        id: `note:${note.id}`,
     });
 
     const style = transform ? {
         transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-        opacity: isDragging ? 0.5 : 1,
+        zIndex: 1000,
     } : undefined;
+
+    // Handle click separately - only trigger if not dragging
+    const handleClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!isDragging) {
+            onSelect();
+        }
+    };
 
     return (
         <div
@@ -472,13 +437,16 @@ function DraggableNoteItem({ note, isSelected, onSelect, onDelete, showIndicator
             style={style}
             {...attributes}
             {...listeners}
+            onClick={handleClick}
             onMouseEnter={() => setShowDelete(true)}
             onMouseLeave={() => setShowDelete(false)}
-            className={cn('flex items-center gap-1 cursor-grab active:cursor-grabbing')}
+            className={cn(
+                'flex items-center gap-1 cursor-grab active:cursor-grabbing select-none',
+                nested && 'ml-4',
+                isDragging && 'opacity-50 shadow-lg bg-sidebar-accent rounded-lg'
+            )}
         >
-            <motion.button
-                whileTap={{ scale: 0.98 }}
-                onClick={onSelect}
+            <div
                 className={cn(
                     'flex flex-1 items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm',
                     'transition-colors duration-150',
@@ -489,23 +457,20 @@ function DraggableNoteItem({ note, isSelected, onSelect, onDelete, showIndicator
             >
                 <FileTextIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <span className="flex-1 truncate text-left">{note.title || 'Untitled'}</span>
-                {/* Green dot indicator for unsorted notes */}
                 {showIndicator && (
                     <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
                 )}
-            </motion.button>
+            </div>
 
             <AnimatePresence>
-                {showDelete && (
+                {showDelete && !isDragging && (
                     <motion.button
                         initial={{ opacity: 0, scale: 0.8 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.8 }}
                         onClick={(e) => {
                             e.stopPropagation();
-                            if (confirm('Delete this note?')) {
-                                onDelete();
-                            }
+                            if (confirm('Delete this note?')) onDelete();
                         }}
                         className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive flex-shrink-0 mr-1"
                     >
@@ -517,7 +482,11 @@ function DraggableNoteItem({ note, isSelected, onSelect, onDelete, showIndicator
     );
 }
 
-interface SortableFolderItemProps {
+// ============================================
+// Droppable Folder - sortable + accepts note drops
+// ============================================
+
+interface DroppableFolderProps {
     folder: Folder;
     notes: Note[];
     expanded: boolean;
@@ -528,7 +497,7 @@ interface SortableFolderItemProps {
     onDeleteFolder: (id: string) => void;
 }
 
-function SortableFolderItem({
+function DroppableFolder({
     folder,
     notes,
     expanded,
@@ -537,8 +506,10 @@ function SortableFolderItem({
     onSelectNote,
     onDeleteNote,
     onDeleteFolder,
-}: SortableFolderItemProps) {
+}: DroppableFolderProps) {
     const [showDelete, setShowDelete] = useState(false);
+
+    // Sortable for folder reordering
     const {
         attributes,
         listeners,
@@ -548,9 +519,9 @@ function SortableFolderItem({
         isDragging,
     } = useSortable({ id: folder.id });
 
-    // Make folder a drop target for notes
+    // Droppable for receiving notes - separate element
     const { setNodeRef: setDroppableRef, isOver } = useDroppable({
-        id: `folder-${folder.id}`,
+        id: `folder:${folder.id}`,
     });
 
     const style = {
@@ -560,16 +531,15 @@ function SortableFolderItem({
     };
 
     return (
-        <div ref={(node) => {
-            setSortableRef(node);
-            setDroppableRef(node);
-        }} style={style}>
+        <div ref={setSortableRef} style={style}>
+            {/* This div is the drop target for notes */}
             <div
+                ref={setDroppableRef}
                 onMouseEnter={() => setShowDelete(true)}
                 onMouseLeave={() => setShowDelete(false)}
                 className={cn(
-                    'flex items-center gap-1',
-                    isOver && 'bg-primary/20 rounded-lg'
+                    'flex items-center gap-1 rounded-lg transition-colors',
+                    isOver && 'bg-primary/30 ring-2 ring-primary/50'
                 )}
             >
                 {/* Drag Handle */}
@@ -636,7 +606,7 @@ function SortableFolderItem({
                             </div>
                         ) : (
                             notes.map(note => (
-                                <NoteItem
+                                <DraggableNote
                                     key={note.id}
                                     note={note}
                                     isSelected={selectedNoteId === note.id}
