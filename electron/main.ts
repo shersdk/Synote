@@ -43,6 +43,9 @@ function createWindow() {
     vibrancy: 'sidebar',
     visualEffectState: 'active',
     
+    // Icon
+    icon: path.join(process.env.APP_ROOT || '', 'build/icon.png'),
+    
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -50,6 +53,11 @@ function createWindow() {
       sandbox: false,
     },
   });
+
+  // Explicitly set dock icon for macOS dev mode
+  if (process.platform === 'darwin') {
+    app.dock.setIcon(path.join(process.env.APP_ROOT || '', 'build/icon.png'));
+  }
 
   // Graceful window show
   mainWindow.once('ready-to-show', () => {
