@@ -13,6 +13,7 @@ import {
     EyeOffIcon,
     AlertCircleIcon,
     BrainIcon,
+    PaletteIcon,
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -26,6 +27,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const [hasApiKey, setHasApiKey] = useState(false);
     const [notesDir, setNotesDir] = useState('');
     const [model, setModel] = useState('');
+    const [colorTheme, setColorTheme] = useState('blue');
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [modelSaveSuccess, setModelSaveSuccess] = useState(false);
@@ -47,6 +49,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
             const savedModel = await window.electronAPI?.settings.getModel();
             setModel(savedModel || '');
+
+            const savedTheme = await window.electronAPI?.settings.getColorTheme();
+            setColorTheme(savedTheme || 'blue');
+            applyTheme(savedTheme || 'blue');
         } catch (err) {
             console.error('Failed to load settings:', err);
         }
@@ -90,6 +96,18 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         } catch (err: any) {
             setError(err.message || 'Failed to save model');
         }
+    };
+
+    const applyTheme = (theme: string) => {
+        const html = document.documentElement;
+        html.classList.remove('theme-blue', 'theme-purple', 'theme-green');
+        html.classList.add(`theme-${theme}`);
+    };
+
+    const handleSetColorTheme = async (theme: string) => {
+        setColorTheme(theme);
+        applyTheme(theme);
+        await window.electronAPI?.settings.setColorTheme(theme);
     };
 
     return (
@@ -241,6 +259,49 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                         >
                                             {modelSaveSuccess ? <CheckIcon className="h-4 w-4" /> : 'Save'}
                                         </Button>
+                                    </div>
+                                </div>
+
+                                {/* Color Theme Section */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <PaletteIcon className="h-4 w-4 text-muted-foreground" />
+                                        <h3 className="font-medium">Color Theme</h3>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">
+                                        Choose a color scheme for the app.
+                                    </p>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <button
+                                            onClick={() => handleSetColorTheme('blue')}
+                                            className={`flex flex-col items-center gap-2 p-3 rounded-lg border transition-all ${colorTheme === 'blue'
+                                                    ? 'border-primary bg-primary/10'
+                                                    : 'border-border hover:border-muted-foreground/50'
+                                                }`}
+                                        >
+                                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-blue-700" />
+                                            <span className="text-xs">Dark Blue</span>
+                                        </button>
+                                        <button
+                                            onClick={() => handleSetColorTheme('purple')}
+                                            className={`flex flex-col items-center gap-2 p-3 rounded-lg border transition-all ${colorTheme === 'purple'
+                                                    ? 'border-primary bg-primary/10'
+                                                    : 'border-border hover:border-muted-foreground/50'
+                                                }`}
+                                        >
+                                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-purple-700" />
+                                            <span className="text-xs">Purple</span>
+                                        </button>
+                                        <button
+                                            onClick={() => handleSetColorTheme('green')}
+                                            className={`flex flex-col items-center gap-2 p-3 rounded-lg border transition-all ${colorTheme === 'green'
+                                                    ? 'border-primary bg-primary/10'
+                                                    : 'border-border hover:border-muted-foreground/50'
+                                                }`}
+                                        >
+                                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700" />
+                                            <span className="text-xs">Green</span>
+                                        </button>
                                     </div>
                                 </div>
 

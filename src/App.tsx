@@ -61,6 +61,22 @@ function AppContent() {
         };
     }, []);
 
+    // Load color theme on startup
+    useEffect(() => {
+        const loadTheme = async () => {
+            try {
+                const savedTheme = await window.electronAPI?.settings.getColorTheme();
+                if (savedTheme) {
+                    document.documentElement.classList.remove('theme-blue', 'theme-purple', 'theme-green');
+                    document.documentElement.classList.add(`theme-${savedTheme}`);
+                }
+            } catch (err) {
+                console.error('Failed to load theme:', err);
+            }
+        };
+        loadTheme();
+    }, []);
+
     return (
         <TooltipProvider>
             <div className="min-h-screen bg-background">

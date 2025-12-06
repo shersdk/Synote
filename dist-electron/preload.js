@@ -33,7 +33,9 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   settings: {
     getNotesDir: () => electron.ipcRenderer.invoke("settings:getNotesDir"),
     getModel: () => electron.ipcRenderer.invoke("settings:getModel"),
-    setModel: (model) => electron.ipcRenderer.invoke("settings:setModel", model)
+    setModel: (model) => electron.ipcRenderer.invoke("settings:setModel", model),
+    getColorTheme: () => electron.ipcRenderer.invoke("settings:getColorTheme"),
+    setColorTheme: (theme) => electron.ipcRenderer.invoke("settings:setColorTheme", theme)
   },
   // Theme
   theme: {

@@ -277,13 +277,13 @@ export function ChatPanel({ isOpen, onClose, onActionsPerformed }: ChatPanelProp
 
             {/* Input */}
             <form onSubmit={handleSubmit} className="border-t border-border p-4">
-                <div className="flex gap-2">
+                <div className="flex gap-2 chat-input-glow rounded-xl p-1">
                     <Input
                         ref={inputRef}
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         placeholder="Ask about your notes..."
-                        className="flex-1"
+                        className="flex-1 bg-secondary/50 border-border/50"
                         disabled={isLoading || isExecuting}
                     />
                     <Button type="submit" size="icon" disabled={isLoading || !input.trim() || isExecuting}>

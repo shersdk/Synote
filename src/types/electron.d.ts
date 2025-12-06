@@ -41,6 +41,8 @@ export interface ElectronAPI {
     getNotesDir: () => Promise<string>;
     getModel: () => Promise<string>;
     setModel: (model: string) => Promise<boolean>;
+    getColorTheme: () => Promise<string>;
+    setColorTheme: (theme: string) => Promise<boolean>;
   };
   theme: {
     get: () => Promise<'dark' | 'light'>;

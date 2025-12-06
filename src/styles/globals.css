@@ -33,33 +33,100 @@
         --sidebar-accent-foreground: 240 5.9% 10%;
     }
 
-    .dark {
-        --background: 240 10% 3.9%;
-        --foreground: 0 0% 98%;
-        --card: 240 10% 3.9%;
-        --card-foreground: 0 0% 98%;
-        --popover: 240 10% 3.9%;
-        --popover-foreground: 0 0% 98%;
-        --primary: 0 0% 98%;
-        --primary-foreground: 240 5.9% 10%;
-        --secondary: 240 3.7% 15.9%;
-        --secondary-foreground: 0 0% 98%;
-        --muted: 240 3.7% 15.9%;
-        --muted-foreground: 240 5% 64.9%;
-        --accent: 240 3.7% 15.9%;
-        --accent-foreground: 0 0% 98%;
+    /* Default dark theme - Dark Blue */
+    .dark,
+    .dark.theme-blue {
+        --background: 222 47% 4%;
+        --foreground: 210 40% 98%;
+        --card: 222 47% 5%;
+        --card-foreground: 210 40% 98%;
+        --popover: 222 47% 6%;
+        --popover-foreground: 210 40% 98%;
+        --primary: 217 91% 60%;
+        --primary-foreground: 222 47% 4%;
+        --secondary: 217 33% 12%;
+        --secondary-foreground: 210 40% 98%;
+        --muted: 217 33% 12%;
+        --muted-foreground: 215 20% 55%;
+        --accent: 217 33% 15%;
+        --accent-foreground: 210 40% 98%;
         --destructive: 0 62.8% 30.6%;
         --destructive-foreground: 0 0% 98%;
-        --border: 240 3.7% 15.9%;
-        --input: 240 3.7% 15.9%;
-        --ring: 240 4.9% 83.9%;
+        --border: 217 33% 15%;
+        --input: 217 33% 12%;
+        --ring: 217 91% 60%;
 
-        /* Sidebar-specific (dark) - very transparent for vibrancy effect */
-        --sidebar-background: 0 0% 0%;
-        --sidebar-foreground: 240 4.8% 95.9%;
-        --sidebar-border: 240 3.7% 20%;
-        --sidebar-accent: 240 3.7% 15.9%;
-        --sidebar-accent-foreground: 240 4.8% 95.9%;
+        /* Sidebar-specific (dark) - dark blue with vibrancy */
+        --sidebar-background: 222 47% 3%;
+        --sidebar-foreground: 210 40% 98%;
+        --sidebar-border: 217 33% 15%;
+        --sidebar-accent: 217 33% 12%;
+        --sidebar-accent-foreground: 210 40% 98%;
+
+        /* Theme accent color for glow effects */
+        --glow-color: 217 91% 60%;
+    }
+
+    /* Midnight Purple Theme */
+    .dark.theme-purple {
+        --background: 270 50% 4%;
+        --foreground: 270 20% 98%;
+        --card: 270 50% 5%;
+        --card-foreground: 270 20% 98%;
+        --popover: 270 50% 6%;
+        --popover-foreground: 270 20% 98%;
+        --primary: 270 70% 60%;
+        --primary-foreground: 270 50% 4%;
+        --secondary: 270 33% 12%;
+        --secondary-foreground: 270 20% 98%;
+        --muted: 270 33% 12%;
+        --muted-foreground: 270 20% 55%;
+        --accent: 270 33% 15%;
+        --accent-foreground: 270 20% 98%;
+        --destructive: 0 62.8% 30.6%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 270 33% 15%;
+        --input: 270 33% 12%;
+        --ring: 270 70% 60%;
+
+        --sidebar-background: 270 50% 3%;
+        --sidebar-foreground: 270 20% 98%;
+        --sidebar-border: 270 33% 15%;
+        --sidebar-accent: 270 33% 12%;
+        --sidebar-accent-foreground: 270 20% 98%;
+
+        --glow-color: 270 70% 60%;
+    }
+
+    /* Deep Green Theme */
+    .dark.theme-green {
+        --background: 160 50% 3%;
+        --foreground: 160 20% 98%;
+        --card: 160 50% 4%;
+        --card-foreground: 160 20% 98%;
+        --popover: 160 50% 5%;
+        --popover-foreground: 160 20% 98%;
+        --primary: 160 70% 45%;
+        --primary-foreground: 160 50% 3%;
+        --secondary: 160 33% 10%;
+        --secondary-foreground: 160 20% 98%;
+        --muted: 160 33% 10%;
+        --muted-foreground: 160 20% 50%;
+        --accent: 160 33% 12%;
+        --accent-foreground: 160 20% 98%;
+        --destructive: 0 62.8% 30.6%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 160 33% 12%;
+        --input: 160 33% 10%;
+        --ring: 160 70% 45%;
+
+        --sidebar-background: 160 50% 2%;
+        --sidebar-foreground: 160 20% 98%;
+        --sidebar-border: 160 33% 12%;
+        --sidebar-accent: 160 33% 10%;
+        --sidebar-accent-foreground: 160 20% 98%;
+
+        --glow-color: 160 70% 45%;
     }
 }
 
@@ -153,4 +220,42 @@
     background: hsl(0 0% 0% / 0.3);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
+}
+
+/* AI Chat Input Glow Effect */
+.chat-input-glow {
+    position: relative;
+}
+
+.chat-input-glow::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 0.75rem;
+    background: linear-gradient(135deg,
+            hsl(var(--glow-color) / 0.3) 0%,
+            hsl(var(--glow-color) / 0.1) 50%,
+            hsl(var(--glow-color) / 0.3) 100%);
+    z-index: -1;
+    animation: chat-glow 3s ease-in-out infinite;
+}
+
+@keyframes chat-glow {
+
+    0%,
+    100% {
+        opacity: 0.6;
+        filter: blur(8px);
+    }
+
+    50% {
+        opacity: 1;
+        filter: blur(12px);
+    }
+}
+
+/* Sidebar folder input - transparent styling */
+.sidebar-input {
+    background: hsl(var(--sidebar-accent) / 0.3) !important;
+    border-color: hsl(var(--sidebar-border) / 0.5) !important;
 }

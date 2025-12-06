@@ -2,4 +2,4 @@
 require("electron");
 require("node:path");
 require("node:fs");
-require("./main-hFFWZCJM.js");
+require("./main-Bzh3KHh6.js");

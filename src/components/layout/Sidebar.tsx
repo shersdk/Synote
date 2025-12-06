@@ -166,6 +166,7 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.15, ease: 'easeOut' }}
                         className="px-3 pb-3 overflow-hidden"
                     >
                         <div className="flex items-center gap-1">
@@ -178,7 +179,7 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
                                     if (e.key === 'Escape') handleCancelFolder();
                                 }}
                                 placeholder="Folder name..."
-                                className="h-8 text-sm"
+                                className="h-8 text-sm sidebar-input bg-sidebar-accent/30 border-sidebar-border/50"
                             />
                             <Button
                                 size="icon"

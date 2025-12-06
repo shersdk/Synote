@@ -1,4 +1,6 @@
-import { ipcMain } from 'electron';
+import { ipcMain, app } from 'electron';
+import fs from 'node:fs';
+import path from 'node:path';
 import { noteRepository } from '../repositories/note.repository';
 import { folderRepository } from '../repositories/folder.repository';
 import { fileService } from '../services/file.service';
@@ -8,6 +10,8 @@ import { executeToolCall } from '../services/tool-executor';
 import { parseIntent, resolveIntent, getIntentParseSystemPrompt } from '../services/intent-parser';
 import type { NoteContext } from '../services/ai.service';
 import type { ToolName } from '../services/ai-tools';
+
+const THEME_FILE = path.join(app.getPath('userData'), '.color-theme');
 
 /**
  * Register all IPC handlers for the main process
@@ -191,6 +195,20 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('settings:setModel', async (_event, model: string) => {
     await aiService.setModel(model);
+    return true;
+  });
+
+  // Color theme handlers
+  ipcMain.handle('settings:getColorTheme', async () => {
+    try {
+      return await fs.promises.readFile(THEME_FILE, 'utf-8');
+    } catch {
+      return 'blue';
+    }
+  });
+
+  ipcMain.handle('settings:setColorTheme', async (_event, theme: string) => {
+    await fs.promises.writeFile(THEME_FILE, theme, 'utf-8');
     return true;
   });
 }

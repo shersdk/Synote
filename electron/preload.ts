@@ -46,6 +46,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getNotesDir: () => ipcRenderer.invoke('settings:getNotesDir'),
     getModel: () => ipcRenderer.invoke('settings:getModel'),
     setModel: (model: string) => ipcRenderer.invoke('settings:setModel', model),
+    getColorTheme: () => ipcRenderer.invoke('settings:getColorTheme'),
+    setColorTheme: (theme: string) => ipcRenderer.invoke('settings:setColorTheme', theme),
   },
 
   // Theme
@@ -95,6 +97,8 @@ declare global {
         getNotesDir: () => Promise<string>;
         getModel: () => Promise<string>;
         setModel: (model: string) => Promise<boolean>;
+        getColorTheme: () => Promise<string>;
+        setColorTheme: (theme: string) => Promise<boolean>;
       };
       theme: {
         get: () => Promise<'dark' | 'light'>;
