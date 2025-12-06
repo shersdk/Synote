@@ -107,7 +107,3 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 5. Open a Pull Request
 
 ---
-
-<div align="center">
-  <p>Built with ❤️ by You</p>
-</div>
