@@ -68,7 +68,10 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
     const [newFolderName, setNewFolderName] = useState('');
     const [orderedFolderIds, setOrderedFolderIds] = useState<string[]>([]);
     const [activeDragId, setActiveDragId] = useState<string | null>(null);
+    const [isSearching, setIsSearching] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     const folderInputRef = useRef<HTMLInputElement>(null);
+    const searchInputRef = useRef<HTMLInputElement>(null);
 
     // Sync ordered folder IDs when folders change
     useEffect(() => {
@@ -83,6 +86,32 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
             folderInputRef.current.focus();
         }
     }, [isCreatingFolder]);
+
+    // Focus search input when opened
+    useEffect(() => {
+        if (isSearching && searchInputRef.current) {
+            searchInputRef.current.focus();
+        }
+    }, [isSearching]);
+
+    // Keyboard shortcut for search (⌘K)
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                setIsSearching(prev => !prev);
+                if (!isSearching) {
+                    setSearchQuery('');
+                }
+            }
+            if (e.key === 'Escape' && isSearching) {
+                setIsSearching(false);
+                setSearchQuery('');
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isSearching]);
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -202,16 +231,45 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
 
             {/* Search */}
             <div className="px-3 pb-3">
-                <Button
-                    variant="ghost"
-                    className="w-full justify-start gap-2 text-muted-foreground hover:bg-sidebar-accent/50 h-9"
-                >
-                    <SearchIcon className="h-4 w-4" />
-                    <span className="text-sm">Search notes...</span>
-                    <kbd className="ml-auto hidden text-[10px] text-muted-foreground/70 bg-muted/50 px-1.5 py-0.5 rounded sm:inline-block">
-                        ⌘K
-                    </kbd>
-                </Button>
+                {isSearching ? (
+                    <div className="flex items-center gap-2 bg-sidebar-accent/50 rounded-lg px-2.5 py-1.5">
+                        <SearchIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <Input
+                            ref={searchInputRef}
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search notes..."
+                            className="h-6 text-sm bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                    setIsSearching(false);
+                                    setSearchQuery('');
+                                }
+                            }}
+                        />
+                        <button
+                            onClick={() => {
+                                setIsSearching(false);
+                                setSearchQuery('');
+                            }}
+                            className="p-0.5 rounded hover:bg-sidebar-accent text-muted-foreground"
+                        >
+                            <XIcon className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+                ) : (
+                    <Button
+                        variant="ghost"
+                        className="w-full justify-start gap-2 text-muted-foreground hover:bg-sidebar-accent/50 h-9"
+                        onClick={() => setIsSearching(true)}
+                    >
+                        <SearchIcon className="h-4 w-4" />
+                        <span className="text-sm">Search notes...</span>
+                        <kbd className="ml-auto hidden text-[10px] text-muted-foreground/70 bg-muted/50 px-1.5 py-0.5 rounded sm:inline-block">
+                            ⌘K
+                        </kbd>
+                    </Button>
+                )}
             </div>
 
             {/* Quick Actions */}
@@ -257,7 +315,69 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
                         <div className="flex items-center justify-center py-8">
                             <Loader2Icon className="h-5 w-5 animate-spin text-muted-foreground" />
                         </div>
+                    ) : isSearching && searchQuery.trim() ? (
+                        // Search Results View
+                        <>
+                            {(() => {
+                                const query = searchQuery.toLowerCase().trim();
+                                const matchingNotes = notes.filter(note =>
+                                    note.title.toLowerCase().includes(query)
+                                );
+
+                                if (matchingNotes.length === 0) {
+                                    return (
+                                        <div className="text-center py-8 text-muted-foreground text-sm">
+                                            <SearchIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                                            <p>No notes found</p>
+                                            <p className="text-xs">Try a different search term</p>
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <>
+                                        <div className="px-2.5 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                            Results ({matchingNotes.length})
+                                        </div>
+                                        {matchingNotes.map(note => {
+                                            const folder = note.folderId
+                                                ? folders.find(f => f.id === note.folderId)
+                                                : null;
+                                            return (
+                                                <button
+                                                    key={note.id}
+                                                    onClick={() => {
+                                                        selectNote(note.id);
+                                                        setIsSearching(false);
+                                                        setSearchQuery('');
+                                                    }}
+                                                    className={cn(
+                                                        'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-left',
+                                                        'transition-colors duration-150',
+                                                        selectedNoteId === note.id
+                                                            ? 'bg-sidebar-accent text-sidebar-foreground'
+                                                            : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+                                                    )}
+                                                >
+                                                    <FileTextIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="truncate">{note.title || 'Untitled'}</div>
+                                                        {folder && (
+                                                            <div className="text-xs text-muted-foreground/70 truncate flex items-center gap-1">
+                                                                <FolderIcon className="h-3 w-3" />
+                                                                {folder.name}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </>
+                                );
+                            })()}
+                        </>
                     ) : (
+                        // Normal Folder View
                         <DndContext
                             sensors={sensors}
                             collisionDetection={pointerWithin}
