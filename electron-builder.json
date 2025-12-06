@@ -1,0 +1,23 @@
+{
+  "appId": "com.synote.app",
+  "productName": "Synote",
+  "directories": {
+    "buildResources": "build"
+  },
+  "files": [
+    "dist-electron",
+    "dist"
+  ],
+  "mac": {
+    "artifactName": "${productName}.${ext}",
+    "target": ["dmg", "zip"],
+    "category": "public.app-category.productivity",
+    "icon": "build/icon.png"
+  },
+  "win": {
+    "target": ["nsis", "zip"]
+  },
+  "linux": {
+    "target": ["deb", "AppImage"]
+  }
+}
