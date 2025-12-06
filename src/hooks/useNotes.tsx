@@ -31,6 +31,7 @@ interface NotesContextType {
     createNote: (title?: string, folderId?: string | null) => Promise<Note | null>;
     updateNote: (id: string, data: { title?: string; content?: string }) => Promise<void>;
     deleteNote: (id: string) => Promise<void>;
+    moveNoteToFolder: (noteId: string, folderId: string | null) => Promise<void>;
     createFolder: (name: string, parentId?: string | null) => Promise<Folder | null>;
     deleteFolder: (id: string) => Promise<void>;
     refreshNotes: () => Promise<void>;
@@ -170,6 +171,16 @@ export function NotesProvider({ children }: NotesProviderProps) {
         }
     }, [selectedNoteId, refreshNotes]);
 
+    const moveNoteToFolder = useCallback(async (noteId: string, folderId: string | null) => {
+        try {
+            await window.electronAPI?.notes.update(noteId, { folderId });
+            await refreshNotes();
+        } catch (err: any) {
+            console.error('Failed to move note:', err);
+            setError(err.message);
+        }
+    }, [refreshNotes]);
+
     const createFolder = useCallback(async (name: string, parentId?: string | null): Promise<Folder | null> => {
         try {
             const folder = await window.electronAPI?.folders.create({
@@ -213,6 +224,7 @@ export function NotesProvider({ children }: NotesProviderProps) {
                 createNote,
                 updateNote,
                 deleteNote,
+                moveNoteToFolder,
                 createFolder,
                 deleteFolder,
                 refreshNotes,

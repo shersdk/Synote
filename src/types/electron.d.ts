@@ -22,7 +22,7 @@ export interface ElectronAPI {
     list: () => Promise<any[]>;
     get: (id: string) => Promise<any | null>;
     create: (data: { title: string; content?: string; folderId?: string }) => Promise<any>;
-    update: (id: string, data: { title?: string; content?: string }) => Promise<any | null>;
+    update: (id: string, data: { title?: string; content?: string; folderId?: string | null }) => Promise<any | null>;
     delete: (id: string) => Promise<boolean>;
   };
   folders: {

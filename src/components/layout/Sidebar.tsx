@@ -7,12 +7,14 @@ import { Input } from '@/components/ui/input';
 import { useNotes, Note, Folder } from '@/hooks/useNotes';
 import {
     DndContext,
-    closestCenter,
     KeyboardSensor,
     PointerSensor,
     useSensor,
     useSensors,
     DragEndEvent,
+    useDroppable,
+    useDraggable,
+    pointerWithin,
 } from '@dnd-kit/core';
 import {
     arrayMove,
@@ -56,6 +58,8 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
         createFolder,
         deleteFolder,
     } = useNotes();
+
+    const { moveNoteToFolder } = useNotes();
 
     const [isCreating, setIsCreating] = useState(false);
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -124,11 +128,41 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
 
-        if (over && active.id !== over.id) {
+        console.log('Drag end:', { activeId: active.id, overId: over?.id });
+
+        if (!over) return;
+
+        // Check if we're dragging a note onto a folder
+        const activeId = active.id as string;
+        const overId = over.id as string;
+
+        console.log('Processing drag:', { activeId, overId });
+
+        // If the active item is a note (starts with 'note-')
+        if (activeId.startsWith('note-')) {
+            const noteId = activeId.replace('note-', '');
+            // If dropping on a folder (either sortable folder or folder droppable)
+            if (overId.startsWith('folder-')) {
+                const folderId = overId.replace('folder-', '');
+                console.log('Moving note to folder:', { noteId, folderId });
+                moveNoteToFolder(noteId, folderId);
+            } else if (folders.some(f => f.id === overId)) {
+                // Direct folder ID match (from sortable)
+                console.log('Moving note to folder (direct):', { noteId, folderId: overId });
+                moveNoteToFolder(noteId, overId);
+            }
+            return;
+        }
+
+        // Otherwise it's folder reordering
+        if (active.id !== over.id) {
             setOrderedFolderIds((items) => {
-                const oldIndex = items.indexOf(active.id as string);
-                const newIndex = items.indexOf(over.id as string);
-                return arrayMove(items, oldIndex, newIndex);
+                const oldIndex = items.indexOf(activeId);
+                const newIndex = items.indexOf(overId);
+                if (oldIndex !== -1 && newIndex !== -1) {
+                    return arrayMove(items, oldIndex, newIndex);
+                }
+                return items;
             });
         }
     };
@@ -283,10 +317,10 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
                                 )}
                             </AnimatePresence>
 
-                            {/* Folders with Drag and Drop */}
+                            {/* Folders and Notes with Drag and Drop */}
                             <DndContext
                                 sensors={sensors}
-                                collisionDetection={closestCenter}
+                                collisionDetection={pointerWithin}
                                 onDragEnd={handleDragEnd}
                             >
                                 <SortableContext
@@ -307,25 +341,26 @@ export function Sidebar({ className, onOpenChat, onOpenSettings }: SidebarProps)
                                         />
                                     ))}
                                 </SortableContext>
-                            </DndContext>
 
-                            {/* Root level notes */}
-                            {rootNotes.length > 0 && (
-                                <>
-                                    <div className="px-2.5 py-1 mt-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                                        Unsorted
-                                    </div>
-                                    {rootNotes.map(note => (
-                                        <NoteItem
-                                            key={note.id}
-                                            note={note}
-                                            isSelected={selectedNoteId === note.id}
-                                            onSelect={() => selectNote(note.id)}
-                                            onDelete={() => deleteNote(note.id)}
-                                        />
-                                    ))}
-                                </>
-                            )}
+                                {/* Root level notes - inside DndContext for drag-drop */}
+                                {rootNotes.length > 0 && (
+                                    <>
+                                        <div className="px-2.5 py-1 mt-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                            Unsorted
+                                        </div>
+                                        {rootNotes.map(note => (
+                                            <DraggableNoteItem
+                                                key={note.id}
+                                                note={note}
+                                                isSelected={selectedNoteId === note.id}
+                                                onSelect={() => selectNote(note.id)}
+                                                onDelete={() => deleteNote(note.id)}
+                                                showIndicator
+                                            />
+                                        ))}
+                                    </>
+                                )}
+                            </DndContext>
 
                             {/* Empty state */}
                             {notes.length === 0 && folders.length === 0 && (
@@ -412,6 +447,76 @@ function NoteItem({ note, isSelected, onSelect, onDelete, nested }: NoteItemProp
     );
 }
 
+interface DraggableNoteItemProps {
+    note: Note;
+    isSelected: boolean;
+    onSelect: () => void;
+    onDelete: () => void;
+    showIndicator?: boolean;
+}
+
+function DraggableNoteItem({ note, isSelected, onSelect, onDelete, showIndicator }: DraggableNoteItemProps) {
+    const [showDelete, setShowDelete] = useState(false);
+    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+        id: `note-${note.id}`,
+    });
+
+    const style = transform ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        opacity: isDragging ? 0.5 : 1,
+    } : undefined;
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            {...attributes}
+            {...listeners}
+            onMouseEnter={() => setShowDelete(true)}
+            onMouseLeave={() => setShowDelete(false)}
+            className={cn('flex items-center gap-1 cursor-grab active:cursor-grabbing')}
+        >
+            <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={onSelect}
+                className={cn(
+                    'flex flex-1 items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm',
+                    'transition-colors duration-150',
+                    isSelected
+                        ? 'bg-sidebar-accent text-sidebar-foreground'
+                        : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+                )}
+            >
+                <FileTextIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <span className="flex-1 truncate text-left">{note.title || 'Untitled'}</span>
+                {/* Green dot indicator for unsorted notes */}
+                {showIndicator && (
+                    <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                )}
+            </motion.button>
+
+            <AnimatePresence>
+                {showDelete && (
+                    <motion.button
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm('Delete this note?')) {
+                                onDelete();
+                            }
+                        }}
+                        className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive flex-shrink-0 mr-1"
+                    >
+                        <TrashIcon className="h-3.5 w-3.5" />
+                    </motion.button>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+}
+
 interface SortableFolderItemProps {
     folder: Folder;
     notes: Note[];
@@ -437,11 +542,16 @@ function SortableFolderItem({
     const {
         attributes,
         listeners,
-        setNodeRef,
+        setNodeRef: setSortableRef,
         transform,
         transition,
         isDragging,
     } = useSortable({ id: folder.id });
+
+    // Make folder a drop target for notes
+    const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+        id: `folder-${folder.id}`,
+    });
 
     const style = {
         transform: CSS.Transform.toString(transform),
@@ -450,11 +560,17 @@ function SortableFolderItem({
     };
 
     return (
-        <div ref={setNodeRef} style={style}>
+        <div ref={(node) => {
+            setSortableRef(node);
+            setDroppableRef(node);
+        }} style={style}>
             <div
                 onMouseEnter={() => setShowDelete(true)}
                 onMouseLeave={() => setShowDelete(false)}
-                className="flex items-center gap-1"
+                className={cn(
+                    'flex items-center gap-1',
+                    isOver && 'bg-primary/20 rounded-lg'
+                )}
             >
                 {/* Drag Handle */}
                 <button
